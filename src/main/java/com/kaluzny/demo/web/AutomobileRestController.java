@@ -4,9 +4,11 @@ import com.kaluzny.demo.domain.Automobile;
 import com.kaluzny.demo.domain.AutomobileRepository;
 import com.kaluzny.demo.exception.AutoWasDeletedException;
 import com.kaluzny.demo.exception.ThereIsNoSuchAutoException;
+import com.kaluzny.demo.service.AutomobileService;
 import io.swagger.v3.oas.annotations.Hidden;
 import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.annotation.PostConstruct;
+import jakarta.jms.JMSException;
 import jakarta.jms.Topic;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +38,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class AutomobileRestController implements AutomobileResource, AutomobileOpenApi, JMSPublisher {
 
+    private final AutomobileService automobileService;
     private final AutomobileRepository repository;
     private final JmsTemplate jmsTemplate;
 
@@ -194,18 +197,41 @@ public class AutomobileRestController implements AutomobileResource, AutomobileO
         return collectionName;
     }
 
+//    @Override
+//    @PostMapping("/message")
+//    @ResponseStatus(HttpStatus.CREATED)
+//    public ResponseEntity<Automobile> pushMessage(@RequestBody Automobile automobile) {
+//        try {
+//            Topic autoTopic = Objects.requireNonNull(jmsTemplate
+//                    .getConnectionFactory()).createConnection().createSession().createTopic("AutoTopic");
+//            Automobile savedAutomobile = repository.save(automobile);
+//            log.info("\u001B[32m" + "Sending Automobile with id: " + savedAutomobile.getId() + "\u001B[0m");
+//            jmsTemplate.convertAndSend(autoTopic, savedAutomobile);
+//            return new ResponseEntity<>(savedAutomobile, HttpStatus.OK);
+//        } catch (Exception exception) {
+//            return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+//        }
+//    }
+
     @Override
     @PostMapping("/message")
     @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<Automobile> pushMessage(@RequestBody Automobile automobile) {
         try {
-            Topic autoTopic = Objects.requireNonNull(jmsTemplate
-                    .getConnectionFactory()).createConnection().createSession().createTopic("AutoTopic");
-            Automobile savedAutomobile = repository.save(automobile);
-            log.info("\u001B[32m" + "Sending Automobile with id: " + savedAutomobile.getId() + "\u001B[0m");
-            jmsTemplate.convertAndSend(autoTopic, savedAutomobile);
-            return new ResponseEntity<>(savedAutomobile, HttpStatus.OK);
-        } catch (Exception exception) {
+            var response = automobileService.pushMessageAndSaveAutomobile(automobile);
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } catch (JMSException e) {
+            return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+    @Override
+    @PostMapping("/message/red")
+    @ResponseStatus(HttpStatus.OK)
+    public ResponseEntity<List<Automobile>> getRedAutomobilesWithJMS() {
+        try {
+            var response = automobileService.getRedAutomobiles();
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } catch (JMSException e) {
             return new ResponseEntity<>(null, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
